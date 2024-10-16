@@ -10,8 +10,6 @@ import numpy as np
 from scipy.stats import pearsonr
 from scipy.stats import beta
 
-import matplotlib.pyplot as plt
-
 def calc_smc(pairs_1, pairs_2):
 	# match results in 1, not match results in -1
 	return np.sum(((pairs_1 * pairs_2) + 1) / 2) / len(pairs_1)
@@ -32,9 +30,7 @@ def calc_pearson_fast(pairs_1, pairs_2):
 	
 	return pearson_r
 
-# python /home/data/nlaszik/nanopore/code/longread_metrics.py -path_input_bed /home/data/atrinh6/nanopore/231208_BrdU500_PGvM/readlevel_meth/intersect_avgBrdU02/readlevel_meth_avgBrdU02ONLY/codeinput/uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv /home/data/Shared/shared_datasets/longread/nlaszik/uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq_full_matrix.csv --use_full_matrix
-
-# python /home/data/nlaszik/nanopore/code/longread_metrics.py -path_input_bed /home/data/atrinh6/nanopore/231208_BrdU500_PGvM/readlevel_meth/intersect_avgBrdU02/readlevel_meth_avgBrdU02ONLY/codeinput/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv /home/data/Shared/shared_datasets/longread/nlaszik/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.csv --use_full_matrix
+# python ./metrics/longread_metrics.py -path_input_bed ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.csv --use_full_matrix
 
 parser = argparse.ArgumentParser()
 

@@ -177,14 +177,7 @@ def correlate_slice(slice, use_full_matrix):
 	
 	return df_corr_records
 
-
-# python /home/data/nlaszik/nanopore/code/longread_metrics_parallel.py -path_input_bed /home/data/atrinh6/nanopore/240119_HUES64_100X/LIB1/20240119_1352_P2S-01599-A_PAU70119_f639b486/readlevelmeth_wgbs.bed -path_output_csv /home/data/Shared/shared_datasets/longread/nlaszik/100x_lib1.csv -p 8
-
-# python /home/data/nlaszik/nanopore/code/longread_metrics_parallel.py -path_input_bed /home/data/atrinh6/nanopore/231208_BrdU500_PGvM/readlevel_meth/intersect_avgBrdU02/readlevel_meth_avgBrdU02ONLY/codeinput/uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv /home/data/Shared/shared_datasets/longread/nlaszik/uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq_full_matrix.csv -p 64 --use_full_matrix
-
-# python /home/data/nlaszik/nanopore/code/longread_metrics_parallel.py -path_input_bed /home/data/atrinh6/nanopore/231208_BrdU500_PGvM/readlevel_meth/intersect_avgBrdU02/readlevel_meth_avgBrdU02ONLY/codeinput/uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv /home/data/Shared/shared_datasets/longread/nlaszik/uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq_full_matrix.csv -p 8 --use_full_matrix
-
-# python /home/data/nlaszik/nanopore/code/longread_metrics_parallel.py -path_input_bed /home/data/atrinh6/nanopore/231208_BrdU500_PGvM/readlevel_meth/intersect_avgBrdU02/readlevel_meth_avgBrdU02ONLY/codeinput/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv /home/data/Shared/shared_datasets/longread/nlaszik/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.csv -p 8 --use_full_matrix
+# python ./metrics/longread_metrics_parallel.py -path_input_bed ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.csv -p 8 --use_full_matrix
 
 parser = argparse.ArgumentParser()
 
@@ -218,7 +211,7 @@ batch_size = min(num_cpgs, int(1e8))
 num_batches = int(num_cpgs // batch_size)
 
 # from here on we are batching
-# keeping the file handle open allows us to restart
+# keeping the file handle open allows us to restart from the next line
 lines_remaining = True
 with open(path_input_bed, 'r') as fh:
 	
