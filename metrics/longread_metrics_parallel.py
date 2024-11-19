@@ -13,17 +13,6 @@ from joblib import Parallel, delayed, dump, load, parallel_backend
 
 import subprocess
 
-def blocks(files, size=65536):
-	while True:
-		b = files.read(size)
-		if not b: break
-		yield b
-
-def create_sublists(data, M):
-	# Create an empty list to store the sublists
-	sublists = [data[i:i+M] for i in range(0, len(data), M)]
-	return sublists
-
 def calc_smc(pairs_1, pairs_2):
 	# match results in 1, not match results in -1
 	return np.sum(((pairs_1 * pairs_2) + 1) / 2) / len(pairs_1)
@@ -82,14 +71,13 @@ def calc_pearson_fast(pairs_1, pairs_2):
 	
 	return pearson_r
 	
-def correlate_slice(slice, use_full_matrix):
-	df_corr_records = []
+def correlate_slice(slice, use_full_matrix, min_values):
 	
-	k = 0
+	df_corr_records = []
 	
 	for read in slice:
 		
-		if len(read['meth_values']) < 3:
+		if len(read['meth_values']) < min_values:
 			continue
 		
 		read_id = read['read_id']
@@ -112,7 +100,7 @@ def correlate_slice(slice, use_full_matrix):
 			filter = np.full((len(meth_values), len(meth_values)), True)
 		else:
 			# real meth_values will never be 0 (since -1 & 1) so this keeps all upper triangle
-			filter = np.logical_not(np.triu(meth_2d, k=k) == 0)
+			filter = np.logical_not(np.triu(meth_2d) == 0)
 		
 		pairs_1 = meth_2d[filter]
 		pairs_2 = meth_2d_t[filter]
@@ -127,7 +115,7 @@ def correlate_slice(slice, use_full_matrix):
 		if use_full_matrix:
 			distances = np.abs(np.subtract.outer(positions, positions))
 		else:
-			distances = np.triu(np.abs(np.subtract.outer(positions, positions)), k=k)
+			distances = np.triu(np.abs(np.subtract.outer(positions, positions)))
 		
 		# distance bins
 		for i_bin, distance_bin in enumerate(distance_bins):
@@ -171,12 +159,13 @@ def correlate_slice(slice, use_full_matrix):
 	
 	return df_corr_records
 
-# python ./metrics/longread_metrics_parallel.py -path_input_bed ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.csv -p 8 --use_full_matrix
+# python ./metrics/longread_metrics_parallel.py -path_input_bed ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.csv -min_values 3 -p 8 --use_full_matrix
 
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-path_input_bed", required = True)
 parser.add_argument("-path_output_csv", required = True)
+parser.add_argument("-min_values", required = True)
 parser.add_argument("-p", required = False)
 parser.add_argument("--use_full_matrix", action='store_true')
 
@@ -185,6 +174,7 @@ args = parser.parse_args()
 
 path_input_bed = args.path_input_bed
 path_output_csv = args.path_output_csv
+min_values = int(args.min_values)
 p = args.p
 use_full_matrix = args.use_full_matrix
 
@@ -245,7 +235,7 @@ with open(path_input_bed, 'r') as fh:
 		slices = [read_list[i:i+slice_size] for i in range(0, num_lines, slice_size)]
 		print(f'processing, slice size: {slice_size}...')
 		with parallel_backend("loky", inner_max_num_threads=2):
-			batch_df_corr_records = Parallel(n_jobs=num_processes, verbose=100, pre_dispatch="all")(delayed(correlate_slice)(slice, use_full_matrix) for slice in slices)
+			batch_df_corr_records = Parallel(n_jobs=num_processes, verbose=100, pre_dispatch="all")(delayed(correlate_slice)(slice, use_full_matrix, min_values) for slice in slices)
 			
 		df_corr_records = [item for sublist in batch_df_corr_records for item in sublist]
 		df_corr = pd.DataFrame.from_records(df_corr_records)

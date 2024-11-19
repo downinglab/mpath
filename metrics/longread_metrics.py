@@ -61,12 +61,13 @@ def calc_pearson_fast(pairs_1, pairs_2):
 	
 	return pearson_r
 
-# python ./metrics/longread_metrics.py -path_input_bed ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.csv --use_full_matrix
+# python ./metrics/longread_metrics.py -path_input_bed ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.csv  -min_values 3 --use_full_matrix
 
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-path_input_bed", required = True)
 parser.add_argument("-path_output_csv", required = True)
+parser.add_argument("-min_values", required = True)
 parser.add_argument("--use_full_matrix", action='store_true')
 
 # get arguments
@@ -74,6 +75,7 @@ args = parser.parse_args()
 
 path_input_bed = args.path_input_bed
 path_output_csv = args.path_output_csv
+min_values = int(args.min_values)
 use_full_matrix = args.use_full_matrix
 
 distance_bins = [[0, 100], [100, 1000], [1000, 5000], [5000, 10000]]
@@ -98,7 +100,7 @@ print('correlating...')
 df_corr_records = []
 for read_id in tqdm(read_dict):
 	
-	if len(read_dict[read_id]['meth_values']) < 3:
+	if len(read_dict[read_id]['meth_values']) < min_values:
 		continue
 	
 	meth_values = np.array(read_dict[read_id]['meth_values'])
