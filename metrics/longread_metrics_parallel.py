@@ -7,11 +7,7 @@ from tqdm import tqdm
 import pandas as pd
 import numpy as np
 
-from scipy.stats import pearsonr
-from scipy.stats import beta
 from scipy.stats import t
-
-import matplotlib.pyplot as plt
 
 from joblib import Parallel, delayed, dump, load, parallel_backend
 
@@ -71,9 +67,7 @@ def calculate_p_value_t_dist(r, n):
 	
 def get_p_values(slice):
 	
-	#pearson_ps = [pearson_p(r, dists[n]) for r,n in slice]
 	pearson_ps = [calculate_p_value_t_dist(r, n) for r,n in slice]
-	
 	return pearson_ps
 	
 def calc_pearson_fast(pairs_1, pairs_2):
@@ -262,10 +256,6 @@ with open(path_input_bed, 'r') as fh:
 		unique_n_pairs = list(set(list_num_pairs))
 		
 		zip_list = list(zip(list_pearson_r, list_num_pairs))
-		
-		print(len(unique_n_pairs))
-		#print('getting beta distributions...')
-		#dists = {n: beta(n/2 - 1, n/2 - 1, loc=-1, scale=2) for n in tqdm(unique_n_pairs)}
 		
 		print('getting p values...')
 		num_lines = len(zip_list)

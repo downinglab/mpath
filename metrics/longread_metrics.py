@@ -7,8 +7,39 @@ from tqdm import tqdm
 import pandas as pd
 import numpy as np
 
-from scipy.stats import pearsonr
 from scipy.stats import beta
+
+def calculate_p_value_t_dist(r, n):
+	"""
+	Calculate the p-value for a Pearson correlation coefficient given the number of data points.
+	
+	Parameters:
+	r (float): The Pearson correlation coefficient.
+	n (int): The number of data points used to calculate the correlation coefficient.
+	
+	Returns:
+	float: The p-value corresponding to the hypothesis that the correlation coefficient is zero.
+	
+	Attempts to do the same thing as Matlab corrcoef function
+	
+	"""
+	# Calculate the t-statistic
+	try:
+		t_statistic = r * np.sqrt((n - 2) / (1 - r**2))
+	except:
+		# if this is an error, r = 1, so p = 0
+		return 0.
+	
+	# Calculate two-tailed p-value
+	p_value = 2 * (1 - t.cdf(np.abs(t_statistic), df=n-2))
+	
+	return p_value
+	
+def get_p_values(slice):
+	
+	pearson_ps = [calculate_p_value_t_dist(r, n) for r,n in slice]
+	
+	return pearson_ps
 
 def calc_smc(pairs_1, pairs_2):
 	# match results in 1, not match results in -1
@@ -150,14 +181,8 @@ df_corr = pd.DataFrame.from_records(df_corr_records)
 list_num_pairs = list(df_corr['num_pairs'])
 list_pearson_r = list(df_corr['pearson_r'])
 
-unique_n_pairs = list(set(list_num_pairs))
-
-print(len(unique_n_pairs))
-print('getting beta distributions...')
-dists = {n: beta(n/2 - 1, n/2 - 1, loc=-1, scale=2) for n in tqdm(unique_n_pairs)}
-
 print('getting p values...')
-pearson_p = [2*dists[n].cdf(-abs(r)) for r, n in tqdm(zip(list_pearson_r, list_num_pairs))]
+pearson_p = get_p_values(list(zip(list_pearson_r, list_num_pairs)))
 
 df_corr['pearson_p'] = pearson_p
 
