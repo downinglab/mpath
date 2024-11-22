@@ -1,3 +1,14 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+
+Calculates metrics for Nanopore long read data.
+
+@author: nglaszik
+
+"""
+
 import os
 import sys
 import argparse
@@ -61,13 +72,14 @@ def calc_pearson_fast(pairs_1, pairs_2):
 	
 	return pearson_r
 
-# python ./metrics/longread_metrics.py -path_input_bed ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.csv  -min_values 3 --use_full_matrix
+# python ./metrics/longread_metrics.py -path_input_bed ./data/input.bed -path_output_csv ./data/output.csv  -min_cpgs 3 -bin_limits 0,100,1000,5000,10000 --use_full_matrix
 
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-path_input_bed", required = True)
 parser.add_argument("-path_output_csv", required = True)
-parser.add_argument("-min_values", required = True)
+parser.add_argument("-min_cpgs", required = False, default_value = 3)
+parser.add_argument("-bin_limits", required = False, default_value = '0,100,1000,5000,10000')
 parser.add_argument("--use_full_matrix", action='store_true')
 
 # get arguments
@@ -75,16 +87,16 @@ args = parser.parse_args()
 
 path_input_bed = args.path_input_bed
 path_output_csv = args.path_output_csv
-min_values = int(args.min_values)
+min_cpgs = int(args.min_cpgs)
+bin_limits = args.bin_limits
 use_full_matrix = args.use_full_matrix
 
-distance_bins = [[0, 100], [100, 1000], [1000, 5000], [5000, 10000]]
+bin_limits_list = [int(limit) for limit in bin_limits.split(',')]
+distance_bins = [[bin_limits_list[i-1], bin_limits_list[i]] for i in range(len(bin_limits_list))]
 
 print('loading long read data...')
 df_cpg = pd.read_csv(path_input_bed, sep='\t', names=['chrom', 'start', 'stop', 'strand', 'read_id', 'methylation', 'wgbs'])
 df_cpg_records = df_cpg.to_dict('records')
-
-print(df_cpg)
 
 # construct first
 print('grouping cpgs by read...')
@@ -100,7 +112,7 @@ print('correlating...')
 df_corr_records = []
 for read_id in tqdm(read_dict):
 	
-	if len(read_dict[read_id]['meth_values']) < min_values:
+	if len(read_dict[read_id]['meth_values']) < min_cpgs:
 		continue
 	
 	meth_values = np.array(read_dict[read_id]['meth_values'])
@@ -188,6 +200,5 @@ pearson_p = get_p_values(list(zip(list_pearson_r, list_num_pairs)))
 
 df_corr['pearson_p'] = pearson_p
 
-print(df_corr)
 df_corr.to_csv(path_output_csv, index=False)
 

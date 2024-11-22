@@ -36,9 +36,15 @@ TT = [TT(:,1), varfun(@(r) cellCheck(r),TT(:,2:end))];
 TT2 = [TT2(:,1), varfun(@(r) cellCheck(r),TT2(:,2:end))];
 
 %% Concatenate Nascent and Mature read data
+%track which columns are not named with the second arg
+getDataColumnIndicesByColumnNames = ~contains(TT.Properties.VariableNames,["ReadID","ReadLength","read_id"]);
+%track which columns are of class double
+getDataColumnIndicesByType = table2array(varfun(@(r) matches(class(r),'double'),TT));
+%get the intersection of the two conditions
+getDataColumnIndices = getDataColumnIndicesByColumnNames & getDataColumnIndicesByType;
 %if error "tabular/vertcat" appears, ensure that the nascent and mature
 %tables are generated from the same script.
-TTT=table2array([TT(:,3:end);TT2(:,3:end)]);
+TTT=table2array([TT(:,getDataColumnIndices);TT2(:,getDataColumnIndices)]);
 %% pca analysis
 % Perform PC Analysis (Simple)
 [coeff,score,~,~,explained,mu]=pca(TTT);
@@ -118,12 +124,15 @@ xlim([-1.75 1.75]);
 ylim([-1.75 1.75]);
 
 %% local functions
-%convert a given table column to type double if it is not already
+%convert a given table column expected to be data to type double if it is
+%not already
 function outputTableColumn = cellCheck(tableColumn)
     if (matches(class(tableColumn),'cell'))
         if (matches(class(tableColumn{1}),'char'))
             outputTableColumn = double(string(tableColumn));
         end
+    elseif ~matches(class(tableColumn),'double')
+        outputTableColumn = double(tableColumn);
     else
         outputTableColumn = tableColumn;
     end

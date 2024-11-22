@@ -1,6 +1,19 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+
+Calculates metrics for Nanopore long read data.
+
+@author: nglaszik
+
+"""
+
 import os
 import sys
 import argparse
+import random
+import string
 
 from tqdm import tqdm
 
@@ -12,6 +25,11 @@ from scipy.stats import t
 from joblib import Parallel, delayed, dump, load, parallel_backend
 
 import subprocess
+
+def generate_random_string(length):
+	"""Generates a random string of letters and digits."""
+	characters = string.ascii_letters + string.digits
+	return ''.join(random.choice(characters) for i in range(length))
 
 def calc_smc(pairs_1, pairs_2):
 	# match results in 1, not match results in -1
@@ -71,13 +89,13 @@ def calc_pearson_fast(pairs_1, pairs_2):
 	
 	return pearson_r
 	
-def correlate_slice(slice, use_full_matrix, min_values):
+def correlate_slice(slice, use_full_matrix, min_cpgs):
 	
 	df_corr_records = []
 	
 	for read in slice:
 		
-		if len(read['meth_values']) < min_values:
+		if len(read['meth_values']) < min_cpgs:
 			continue
 		
 		read_id = read['read_id']
@@ -159,14 +177,16 @@ def correlate_slice(slice, use_full_matrix, min_values):
 	
 	return df_corr_records
 
-# python ./metrics/longread_metrics_parallel.py -path_input_bed ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.bed -path_output_csv ./data/DS1000_uniq_sameStartEnd_PG_B500_16h_readlevelmeth_avgBrdU02ONLY_WGBS_uniq.csv -min_values 3 -p 8 --use_full_matrix
+# python ./metrics/longread_metrics_parallel.py -path_input_bed ./data/input.bed -path_output_csv ./data/output.csv -p 8 -min_cpgs 3 -bin_limits 0,100,1000,5000,10000 --use_full_matrix
 
 parser = argparse.ArgumentParser()
 
 parser.add_argument("-path_input_bed", required = True)
 parser.add_argument("-path_output_csv", required = True)
-parser.add_argument("-min_values", required = True)
-parser.add_argument("-p", required = False)
+parser.add_argument("-min_cpgs", required = True)
+parser.add_argument("-bin_limits", required = True)
+parser.add_argument("-batch_size", required = False, default=1e8)
+parser.add_argument("-p", required = False, default=1)
 parser.add_argument("--use_full_matrix", action='store_true')
 
 # get arguments
@@ -174,32 +194,32 @@ args = parser.parse_args()
 
 path_input_bed = args.path_input_bed
 path_output_csv = args.path_output_csv
-min_values = int(args.min_values)
-p = args.p
+min_cpgs = int(args.min_cpgs)
+bin_limits = args.bin_limits
+batch_size = int(args.batch_size)
+p = int(args.p)
 use_full_matrix = args.use_full_matrix
 
-if p:
-	num_processes = int(p)
-else:
-	num_processes = 1
-
-distance_bins = [[0, 100], [100, 1000], [1000, 5000], [5000, 10000]]
-read_dict = {}
+# construct distance_bins from string
+bin_limits_list = [int(limit) for limit in bin_limits.split(',')]
+distance_bins = [[bin_limits_list[i-1], bin_limits_list[i]] for i in range(len(bin_limits_list))]
 
 print('counting cpgs...')
 result = subprocess.run(["wc", "-l", path_input_bed], stdout=subprocess.PIPE, text=True, check=True)
 num_cpgs = int(result.stdout.split()[0])
+print(f'processing {num_cpgs} cpgs')
 
-batch_size = min(num_cpgs, int(1e8))
-
+# minimize batch size if more than number of cpgs
+batch_size = min(num_cpgs, batch_size)
 num_batches = int(num_cpgs // batch_size)
 
-# from here on we are batching
-# keeping the file handle open allows us to restart from the next line
+# read file and process in batches
+batch_csv_paths = []
 lines_remaining = True
 with open(path_input_bed, 'r') as fh:
 	
 	i_batch = 0
+	i_line = 0
 	read_dict = {}
 	last_read_id = ''
 	
@@ -212,8 +232,19 @@ with open(path_input_bed, 'r') as fh:
 		for line in tqdm(fh, total=batch_size):
 			
 			line_list = line.split('\t')
-			read_id = line_list[4]
 			
+			# exit if enough lines aren't detected
+			# this is fine for entire file since iterator will stop once we reach end of file
+			if len(line_list) < 7:
+				print(f'Please include all columns in input BED, only {len(line_list)} detected at row {i_line}')
+				sys.exit()
+			
+			position = int(line_list[1])
+			read_id = line_list[4]
+			meth_value = float(line_list[5])
+			wgbs_value = float(line_list[6])
+			
+			# will stop including reads in batch once batch size is full AND we have finished reading data for an entire read
 			if num_cpgs_in_batch > batch_size and read_id != last_read_id:
 				lines_remaining = True
 				break
@@ -221,21 +252,22 @@ with open(path_input_bed, 'r') as fh:
 			if last_read_id != read_id:
 				read_dict[read_id] = {'meth_values': [], 'positions': [], 'wgbs_values': [], 'read_id': read_id}
 			
-			read_dict[read_id]['meth_values'].append(float(line_list[5]))
-			read_dict[read_id]['positions'].append(int(line_list[1]))
-			read_dict[read_id]['wgbs_values'].append(float(line_list[6]))
+			read_dict[read_id]['meth_values'].append(meth_value)
+			read_dict[read_id]['positions'].append(position)
+			read_dict[read_id]['wgbs_values'].append(wgbs_value)
 			
 			last_read_id = read_id
 			num_cpgs_in_batch += 1
+			i_line += 1
 			
-		# load just this batch and slice
+		# load just this batch and slice it
 		read_list = [read_dict[read_id] for read_id in read_dict]
 		num_lines = len(read_list)
 		slice_size = num_lines // num_processes
 		slices = [read_list[i:i+slice_size] for i in range(0, num_lines, slice_size)]
 		print(f'processing, slice size: {slice_size}...')
 		with parallel_backend("loky", inner_max_num_threads=2):
-			batch_df_corr_records = Parallel(n_jobs=num_processes, verbose=100, pre_dispatch="all")(delayed(correlate_slice)(slice, use_full_matrix, min_values) for slice in slices)
+			batch_df_corr_records = Parallel(n_jobs=num_processes, verbose=100, pre_dispatch="all")(delayed(correlate_slice)(slice, use_full_matrix, min_cpgs) for slice in slices)
 			
 		df_corr_records = [item for sublist in batch_df_corr_records for item in sublist]
 		df_corr = pd.DataFrame.from_records(df_corr_records)
@@ -257,19 +289,33 @@ with open(path_input_bed, 'r') as fh:
 		
 		df_corr['pearson_p'] = [item for sublist in all_p_values for item in sublist]
 		
-		print(df_corr)
-		path_output_csv_batch = path_output_csv.replace('.csv', f'.batch{i_batch}.csv')
+		# output batch file
+		random_string = generate_random_string(10)
+		path_output_csv_batch = path_output_csv.replace('.csv', f'.{random_string}.csv')
 		df_corr.to_csv(path_output_csv_batch, index=False)
 		
 		# since file handle iterator cannot go back, we use the last value to make sure nothing is missed
+		# this is triggered once a new read_id triggers execution of a batch
+		# new read dict is required for batch, read_id should not be in it
 		read_dict = {}
 		read_dict[read_id] = {'meth_values': [], 'positions': [], 'wgbs_values': [], 'read_id': read_id}
-		read_dict[read_id]['meth_values'].append(float(line_list[5]))
-		read_dict[read_id]['positions'].append(int(line_list[1]))
-		read_dict[read_id]['wgbs_values'].append(float(line_list[6]))
+		read_dict[read_id]['meth_values'].append(meth_value)
+		read_dict[read_id]['positions'].append(position)
+		read_dict[read_id]['wgbs_values'].append(wgbs_value)
 		
 		del batch_df_corr_records
 		del df_corr_records
 		
 		i_batch += 1
+		
+print('Finished processing, stitching batch CSVs together...')
+# stitch batch csvs together
+df_corrs = [pd.read_csv(path) for path in batch_csv_paths]
+df = pd.concat(df_corrs)
+df.to_csv(path_output_csv, index=False)
 
+# delete batch csvs
+for path in batch_csv_paths:
+	os.remove(path)
+
+print('Done')
