@@ -92,7 +92,7 @@ bin_limits = args.bin_limits
 use_full_matrix = args.use_full_matrix
 
 bin_limits_list = [int(limit) for limit in bin_limits.split(',')]
-distance_bins = [[bin_limits_list[i-1], bin_limits_list[i]] for i in range(len(bin_limits_list))]
+distance_bins = [[bin_limits_list[i], bin_limits_list[i + 1]] for i in range(len(bin_limits_list) - 1)]
 
 print('loading long read data...')
 df_cpg = pd.read_csv(path_input_bed, sep='\t', names=['chrom', 'start', 'stop', 'strand', 'read_id', 'methylation', 'wgbs'])

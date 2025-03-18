@@ -197,12 +197,14 @@ path_output_csv = args.path_output_csv
 min_cpgs = int(args.min_cpgs)
 bin_limits = args.bin_limits
 batch_size = int(args.batch_size)
-p = int(args.p)
+num_processes = int(args.p)
 use_full_matrix = args.use_full_matrix
 
 # construct distance_bins from string
 bin_limits_list = [int(limit) for limit in bin_limits.split(',')]
-distance_bins = [[bin_limits_list[i-1], bin_limits_list[i]] for i in range(len(bin_limits_list))]
+distance_bins = [[bin_limits_list[i], bin_limits_list[i + 1]] for i in range(len(bin_limits_list) - 1)]
+
+print(distance_bins)
 
 print('counting cpgs...')
 result = subprocess.run(["wc", "-l", path_input_bed], stdout=subprocess.PIPE, text=True, check=True)

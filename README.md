@@ -13,15 +13,17 @@ git clone https://github.com/downinglab/mpath.git
 
 3. Run Python code from the the command line.
 
+```bash
+python ./metrics/longread_metrics_parallel.py -path_input_bed ./data/input.bed -path_output_csv ./data/output.csv -p 8 -min_cpgs 3 -bin_limits 0,100,1000,5000,10000 --use_full_matrix
+```
+
 4. Run Matlab PCA code using output CSV from Python.
 
 ## Python Usage
 
-MPATH calculates pseudotime for long read data from Oxford Nanopore Technologies sequencing platforms. The flow of information is as follows:
+MPATH calculates pseudotime for long read data from Oxford Nanopore Technologies sequencing platforms. The flow of data is as follows:
 
-Nanopore BAM file with MM/ML tags -> modkit -> CpG methylation bed file -> Python metrics code -> MATLAB PCA code -> Pseudotime score
-
-In the future, the PCA Matlab code may be incorporated as Python, and MPATH distributed via pip.
+Nanopore BAM file with MM/ML tags -> modkit extract calls -> CpG methylation bed file -> Python metrics code -> MATLAB PCA code -> Pseudotime score
 
 ### Python Input BED File Structure
 
@@ -36,6 +38,14 @@ A bed file serves as the input to longread_metrics_parallel.py or longread_metri
 | 5      | read id               | read id of where the cpg came from                 | str   |
 | 6      | long read methylation | methylated (1) or unmethylated (0) state           | int   |
 | 7      | wgbs methylation      | methylation ratio of cpg in wgbs data              | float |
+
+This file is generated using a combination of modkit and a WGBS bedfile. It should be sorted according to chromosome, read ID, and start position:
+
+```bash
+sort -k 1,1 -k 5,5 -k 2,2n input.bed > output.bed
+```
+
+Note: If working with BrdU-labeled data, this bed file should be filtered to only contain BrdU-positive reads. BrdU can be called using the software DNAscent. Average BrdU content can be calculated for each individual read by averaging the BrdU probabilities assigned by DNAscent.
 
 ### Python Command Line Arguments
 
@@ -82,6 +92,8 @@ The Python code outputs a CSV in long format, where each row corresponds to a pa
 | 8      | pearson_r             | pearson rho                                               | float |
 | 9      | pearson_p             | pearson p value                                           | float |
 
+Note: Not all read-level metrics need to be used for the PCA. Different combinations of read-level metrics may yield greater separation between nascent and mature reads.
+
 ## MATLAB PCA Code Instructions
 
 After generation of longread_metrics.py output CSVs, the files may be used in NascMatur_PCA_scatterhistogram.m for PCA and visualization. 
@@ -119,3 +131,7 @@ The NascMatur_PCA_scatterhistogram.m script calls for one nascent and one mature
 |read_y |num_type|num_type|  .|num_type|
 |    ...|     ...|     ...|  .|	    ...|
 |read_M2|num_type|num_type|  .|num_type|
+
+## Downstream Analysis of Unlabeled Data
+
+Read-level metrics should be calculated for unlabeled data sets. Then, the desired coefficients from the PCA (which was performed on labeled data) can be applied to the read-level metrics that were calculated for unlabeled data. Optional triaging of any seemingly temporally stagnant reads may enable greater separation between nascent and mature reads.
