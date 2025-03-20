@@ -14,6 +14,7 @@ import sys
 import argparse
 import random
 import string
+import math
 
 from tqdm import tqdm
 
@@ -85,7 +86,10 @@ def calc_pearson_fast(pairs_1, pairs_2):
 	pearson_numerator = np.sum((pairs_1 - mean_pairs_1) * (pairs_2 - mean_pairs_2))
 	pearson_denominator = np.sqrt(np.sum(np.square(pairs_1 - mean_pairs_1)) * np.sum(np.square(pairs_2 - mean_pairs_2)))
 	
-	pearson_r = pearson_numerator / pearson_denominator
+	if pearson_denominator > 0:
+		pearson_r = pearson_numerator / pearson_denominator
+	else:
+		pearson_r = np.nan
 	
 	return pearson_r
 	
@@ -204,16 +208,18 @@ use_full_matrix = args.use_full_matrix
 bin_limits_list = [int(limit) for limit in bin_limits.split(',')]
 distance_bins = [[bin_limits_list[i], bin_limits_list[i + 1]] for i in range(len(bin_limits_list) - 1)]
 
-print(distance_bins)
+for i_bin, distance_bin in enumerate(distance_bins):
+	print(f'bin_{i_bin}: {distance_bin}')
 
 print('counting cpgs...')
 result = subprocess.run(["wc", "-l", path_input_bed], stdout=subprocess.PIPE, text=True, check=True)
 num_cpgs = int(result.stdout.split()[0])
+num_cpgs_remaining = num_cpgs
 print(f'processing {num_cpgs} cpgs')
 
 # minimize batch size if more than number of cpgs
 batch_size = min(num_cpgs, batch_size)
-num_batches = int(num_cpgs // batch_size)
+num_batches = int(math.ceil(num_cpgs / batch_size))
 
 # read file and process in batches
 batch_csv_paths = []
@@ -229,9 +235,10 @@ with open(path_input_bed, 'r') as fh:
 			
 		print(f'loading data for batch {i_batch + 1} out of {num_batches}...')
 		num_cpgs_in_batch = 0
+		running_batch_size = min(batch_size, num_cpgs_remaining)
 		lines_remaining = False
 		
-		for line in tqdm(fh, total=batch_size):
+		for line in tqdm(fh, total=running_batch_size):
 			
 			line_list = line.split('\t')
 			
@@ -262,6 +269,8 @@ with open(path_input_bed, 'r') as fh:
 			num_cpgs_in_batch += 1
 			i_line += 1
 			
+		num_cpgs_remaining = num_cpgs_remaining - num_cpgs_in_batch
+			
 		# load just this batch and slice it
 		read_list = [read_dict[read_id] for read_id in read_dict]
 		num_lines = len(read_list)
@@ -269,7 +278,7 @@ with open(path_input_bed, 'r') as fh:
 		slices = [read_list[i:i+slice_size] for i in range(0, num_lines, slice_size)]
 		print(f'processing, slice size: {slice_size}...')
 		with parallel_backend("loky", inner_max_num_threads=2):
-			batch_df_corr_records = Parallel(n_jobs=num_processes, verbose=100, pre_dispatch="all")(delayed(correlate_slice)(slice, use_full_matrix, min_cpgs) for slice in slices)
+			batch_df_corr_records = Parallel(n_jobs=num_processes, verbose=10, pre_dispatch="all")(delayed(correlate_slice)(slice, use_full_matrix, min_cpgs) for slice in slices)
 			
 		df_corr_records = [item for sublist in batch_df_corr_records for item in sublist]
 		df_corr = pd.DataFrame.from_records(df_corr_records)
@@ -287,7 +296,7 @@ with open(path_input_bed, 'r') as fh:
 		slices = [zip_list[i:i+slice_size] for i in range(0, num_lines, slice_size)]
 		
 		with parallel_backend("loky", inner_max_num_threads=2):
-			all_p_values = Parallel(n_jobs=num_processes, verbose=100, pre_dispatch="all")(delayed(get_p_values)(slice) for slice in slices)
+			all_p_values = Parallel(n_jobs=num_processes, verbose=10, pre_dispatch="all")(delayed(get_p_values)(slice) for slice in slices)
 		
 		df_corr['pearson_p'] = [item for sublist in all_p_values for item in sublist]
 		
@@ -295,6 +304,7 @@ with open(path_input_bed, 'r') as fh:
 		random_string = generate_random_string(10)
 		path_output_csv_batch = path_output_csv.replace('.csv', f'.{random_string}.csv')
 		df_corr.to_csv(path_output_csv_batch, index=False)
+		batch_csv_paths.append(path_output_csv_batch)
 		
 		# since file handle iterator cannot go back, we use the last value to make sure nothing is missed
 		# this is triggered once a new read_id triggers execution of a batch
